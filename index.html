@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en-us">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Aim Training Game - Mobile Controls</title>
+    <style>
+      body { margin: 0; padding: 0; background-color: #000; overflow: hidden; font-family: sans-serif; }
+      #unity-container { width: 100vw; height: 100vh; position: absolute; top: 0; left: 0; }
+      canvas { width: 100%; height: 100%; display: block; }
+      
+      /* UI Controls Overlay */
+      .ui-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none; /* Allows clicking through background to the game */
+        z-index: 10;
+      }
+      .interactive { pointer-events: auto; } /* Enables touch on buttons */
+
+      /* Joystick Styles */
+      #joystick-container {
+        position: absolute;
+        bottom: 40px;
+        left: 40px;
+        width: 120px;
+        height: 120px;
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 50%;
+        border: 2px solid rgba(255, 255, 255, 0.4);
+      }
+      #joystick-handle {
+        position: absolute;
+        top: 35px;
+        left: 35px;
+        width: 50px;
+        height: 50px;
+        background: rgba(255, 255, 255, 0.8);
+        border-radius: 50%;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+      }
+
+      /* Action Buttons Right Side */
+      .action-buttons {
+        position: absolute;
+        bottom: 40px;
+        right: 40px;
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+      }
+      .btn {
+        width: 70px;
+        height: 70px;
+        border-radius: 50%;
+        border: none;
+        background: rgba(255, 0, 0, 0.6);
+        color: white;
+        font-weight: bold;
+        font-size: 14px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+      }
+      .btn:active { background: rgba(255, 0, 0, 0.9); }
+      #btn-jump { background: rgba(0, 150, 255, 0.6); }
+      #btn-jump:active { background: rgba(0, 150, 255, 0.9); }
+
+      /* Weapon Selector Top Center */
+      #weapon-container {
+        position: absolute;
+        top: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        gap: 10px;
+      }
+      .btn-gun {
+        padding: 10px 20px;
+        border-radius: 5px;
+        border: 1px solid #fff;
+        background: rgba(0, 0, 0, 0.6);
+        color: #fff;
+        font-weight: bold;
+      }
+      .btn-gun:active { background: #fff; color: #000; }
+    </style>
+    <!-- Include Unity WebGL Loader Script -->
+    <script src="Build/UnityLoader.js"></script> 
+  </head>
+  <body>
+
+    <div id="unity-container">
+      <canvas id="unity-canvas"></canvas>
+    </div>
+
+    <!-- Mobile UI Controls -->
+    <div class="ui-overlay">
+      <!-- Joystick -->
+      <div id="joystick-container" class="interactive">
+        <div id="joystick-handle"></div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="action-buttons">
+        <button id="btn-fire" class="btn interactive">FIRE</button>
+        <button id="btn-jump" class="btn interactive">JUMP</button>
+      </div>
+
+      <!-- Gun Switcher -->
+      <div id="weapon-container">
+        <button class="btn-gun interactive" onclick="switchGun('M416')">M416</button>
+        <button class="btn-gun interactive" onclick="switchGun('Kar98k')">Kar98k</button>
+        <button class="btn-gun interactive" onclick="switchGun('P90')">P90</button>
+      </div>
+    </div>
+
+    <script>
+      var gameInstance = null;
+
+      // Unity WebGL Build Initialization
+      createUnityInstance(document.querySelector("#unity-canvas"), {
+        dataUrl: "Build/Build.data",
+        frameworkUrl: "Build/Build.framework.js",
+        codeUrl: "Build/Build.wasm",
+        streamingAssetsUrl: "StreamingAssets",
+        companyName: "DefaultCompany",
+        productName: "AimTrainingGame",
+        productVersion: "1.0",
+      }).then((unityInstance) => {
+        gameInstance = unityInstance;
+      }).catch((message) => {
+        alert(message);
+      });
+
+      // --- Interaction functions with Unity Scripts ---
+
+      // 1. Gun Change Logic
+      function switchGun(gunName) {
+        if(gameInstance) {
+          // Unity Object: "Player", Script Method: "SwitchWeapon", Parameter: gunName
+          gameInstance.SendMessage('Player', 'SwitchWeapon', gunName);
+        }
+      }
+
+      // 2. Fire Button Action
+      document.getElementById('btn-fire').addEventListener('touchstart', function() {
+        if(gameInstance) gameInstance.SendMessage('Player', 'Shoot');
+      });
+
+      // 3. Jump Button Action
+      document.getElementById('btn-jump').addEventListener('touchstart', function() {
+        if(gameInstance) gameInstance.SendMessage('Player', 'Jump');
+      });
+
+      // 4. Mobile Joystick Logic (Touch Movement)
+      const joystick = document.getElementById('joystick-container');
+      const handle = document.getElementById('joystick-handle');
+      let joystickActive = false;
+
+      joystick.addEventListener('touchstart', (e) => { joystickActive = true; });
+
+      window.addEventListener('touchmove', (e) => {
+        if (!joystickActive) return;
+        
+        const rect = joystick.getBoundingClientRect();
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+        
+        let touchX = e.touches[0].clientX - centerX;
+        let touchY = e.touches[0].clientY - centerY;
+        
+        const distance = Math.min(Math.sqrt(touchX*touchX + touchY*touchY), 35); // Max drag radius
+        const angle = Math.atan2(touchY, touchX);
+        
+        const moveX = distance * Math.cos(angle);
+        const moveY = distance * Math.sin(angle);
+        
+        handle.style.transform = `translate(${moveX}px, ${moveY}px)`;
+
+        // Vector values pass normalized inputs (-1 to 1) to Unity for player movement
+        let inputX = moveX / 35;
+        let inputY = -moveY / 35; // Invert HTML axis for Unity's vertical space
+
+        if(gameInstance) {
+          gameInstance.SendMessage('Player', 'ReceiveJoystickInputX', inputX);
+          gameInstance.SendMessage('Player', 'ReceiveJoystickInputY', inputY);
+        }
+      });
+
+      window.addEventListener('touchend', () => {
+        if (!joystickActive) return;
+        joystickActive = false;
+        handle.style.transform = `translate(0px, 0px)`;
+        
+        // Reset movement data when touch ends
+        if(gameInstance) {
+          gameInstance.SendMessage('Player', 'ReceiveJoystickInputX', 0);
+          gameInstance.SendMessage('Player', 'ReceiveJoystickInputY', 0);
+        }
+      });
+    </script>
+  </body>
+</html>
